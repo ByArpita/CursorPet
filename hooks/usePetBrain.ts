@@ -14,6 +14,7 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 
 type Options = {
   focusActive: boolean;
+  followCursor?: boolean;
   forcedDebugState?: ForcedDebugState;
   enableSleep?: boolean;
   enableStubbornMode?: boolean;
@@ -23,6 +24,7 @@ type Options = {
 
 export function usePetBrain({
   focusActive,
+  followCursor = true,
   forcedDebugState = null,
   enableSleep = true,
   enableStubbornMode = true,
@@ -59,6 +61,7 @@ export function usePetBrain({
   const awaySince = useRef(0);
   const edgeDwellSince = useRef(0);
   const edgeReturn = useRef(false);
+  const followCatchUp = useRef(false);
   const edgeCooldownUntil = useRef(0);
   const chaseRecovery = useRef(false);
   const hidingReason = useRef<'chase' | 'edge' | 'debug'>('edge');
@@ -71,6 +74,7 @@ export function usePetBrain({
   const [visible, setVisible] = useState(true);
   const [reducedMotion, setReducedMotion] = useState(false);
   const reducedRef = useRef(false);
+  const previousFollowCursor = useRef(followCursor);
   const effectiveState = forcedDebugState ?? state;
 
   const cancelTimer = useCallback((key: string) => {
@@ -108,8 +112,8 @@ export function usePetBrain({
   const returnToAutonomy = useCallback((now: number) => {
     chaseRecovery.current = false;
     const recentMovement = now - lastInput.current < 220;
-    commit(!focusActive && recentMovement ? speedState(velocityRef.current) : 'IDLE');
-  }, [commit, focusActive]);
+    commit(followCursor && !focusActive && recentMovement ? speedState(velocityRef.current) : 'IDLE');
+  }, [commit, focusActive, followCursor]);
 
   const beginWake = useCallback(() => {
     commit('CURIOUS');
@@ -132,7 +136,7 @@ export function usePetBrain({
   }, [commit]);
 
   const recordPull = useCallback((now: number) => {
-    if (!enableStubbornMode || forcedDebugState) return;
+    if (!followCursor || !enableStubbornMode || forcedDebugState) return;
     stubbornPulls.current = [...stubbornPulls.current.filter(time => now - time <= 10000), now];
     if (
       stubbornPulls.current.length >= 5 &&
@@ -147,14 +151,14 @@ export function usePetBrain({
       stubbornPulls.current = [];
       commit('STUBBORN');
     }
-  }, [commit, enableStubbornMode, focusActive, forcedDebugState]);
+  }, [commit, enableStubbornMode, focusActive, followCursor, forcedDebugState]);
 
   const move = useCallback((point: Point, speed: number, now: number) => {
     pointerPosition.current = point;
-    velocityRef.current = speed;
+    velocityRef.current = followCursor ? speed : 0;
     lastInput.current = now;
     setVisible(true);
-    setVelocity(Math.max(0, Math.min(1, speed / 1.5)));
+    setVelocity(followCursor ? Math.max(0, Math.min(1, speed / 1.5)) : 0);
 
     const previous = cursorMotion.current;
     const dx = previous ? point.x - previous.point.x : 0;
@@ -167,7 +171,7 @@ export function usePetBrain({
     const previousGap = previous?.gap ?? gap;
     let segmentLength = previous?.segmentLength ?? 0;
 
-    if (!forcedDebugState && enableStubbornMode && step >= 3) {
+    if (followCursor && !forcedDebugState && enableStubbornMode && step >= 3) {
       if (previous && dot < -.45) {
         if (previous.segmentLength >= 55 && step >= 18 && speed >= .12) {
           if (previous.gap >= 135 && now - lastPullAt.current >= 80) {
@@ -187,7 +191,7 @@ export function usePetBrain({
     }
 
     const candidate = pullCandidate.current;
-    if (!forcedDebugState && candidate) {
+    if (followCursor && !forcedDebugState && candidate) {
       if (now - candidate.at > 1200) pullCandidate.current = null;
       else if (gap >= 135 && gap >= candidate.gap + 60 && now - lastPullAt.current >= 300) {
         recordPull(now);
@@ -207,6 +211,7 @@ export function usePetBrain({
     }
     if (current === 'CURIOUS') return;
     if (['HIDING', 'STUBBORN', 'CELEBRATE', 'EXCITED', 'JUMP'].includes(current)) return;
+    if (!followCursor) return;
     if (chaseRecovery.current) {
       commit('RUN');
       return;
@@ -231,7 +236,7 @@ export function usePetBrain({
     }
 
     commit(focusActive ? 'IDLE' : speedState(speed));
-  }, [beginHiding, beginWake, commit, enableStubbornMode, focusActive, forcedDebugState, recordPull]);
+  }, [beginHiding, beginWake, commit, enableStubbornMode, focusActive, followCursor, forcedDebugState, recordPull]);
 
   const leave = useCallback((point: Point) => {
     pointerPosition.current = { x: point.x + (point.x < innerWidth / 2 ? -100 : 100), y: point.y };
@@ -290,8 +295,42 @@ export function usePetBrain({
     hidingReason.current = 'edge';
     stubbornUntil.current = 0;
     chaseRecovery.current = false;
-    commit(focusActive ? 'IDLE' : speedState(velocityRef.current));
-  }, [forcedDebugState, commit, focusActive, cancelTransientTimers]);
+    commit(!followCursor || focusActive ? 'IDLE' : speedState(velocityRef.current));
+  }, [forcedDebugState, commit, focusActive, followCursor, cancelTransientTimers]);
+
+  useEffect(() => {
+    const wasFollowing = previousFollowCursor.current;
+    previousFollowCursor.current = followCursor;
+    if (wasFollowing === followCursor) return;
+
+    stubbornPulls.current = [];
+    pullCandidate.current = null;
+    chaseApproaches.current = [];
+    edgeDwellSince.current = 0;
+    edgeReturn.current = false;
+    chaseRecovery.current = false;
+    if (!followCursor) {
+      followCatchUp.current = false;
+      if (forcedDebugState) return;
+      if (
+        lastState.current === 'WALK' ||
+        lastState.current === 'RUN' ||
+        lastState.current === 'STUBBORN' ||
+        (lastState.current === 'HIDING' && hidingReason.current !== 'debug')
+      ) {
+        cancelTransientTimers();
+        commit('IDLE');
+      }
+      return;
+    }
+
+    if (forcedDebugState) return;
+    const gap = distance(position.current, pointerPosition.current);
+    followCatchUp.current = !focusActive && gap > 80;
+    if (focusActive) commit('IDLE');
+    else if (followCatchUp.current) commit(gap > 235 ? 'RUN' : 'WALK');
+    else commit(speedState(velocityRef.current));
+  }, [followCursor, forcedDebugState, focusActive, commit, cancelTransientTimers]);
 
   useEffect(() => {
     if (!focusActive || forcedDebugState) return;
@@ -331,6 +370,8 @@ export function usePetBrain({
       const behavior = forcedDebugState ?? lastState.current;
       let desired = pointerPosition.current;
       if (!desired || desired.x < 0) desired = center();
+      const forcedFollowState = Boolean(forcedDebugState && ['WALK', 'RUN', 'HIDING'].includes(forcedDebugState));
+      const followMovementEnabled = followCursor || forcedFollowState;
 
       let holdPosition = Boolean(
         forcedDebugState &&
@@ -338,6 +379,8 @@ export function usePetBrain({
       );
       if (
         !forcedDebugState &&
+        followCursor &&
+        !followCatchUp.current &&
         !chaseRecovery.current &&
         now - lastInput.current > 180 &&
         (lastState.current === 'WALK' || lastState.current === 'RUN')
@@ -356,7 +399,7 @@ export function usePetBrain({
         } else if (!forcedDebugState && now >= stubbornUntil.current) {
           returnToAutonomy(now);
         }
-      } else if (!forcedDebugState && chaseRecovery.current) {
+      } else if (!forcedDebugState && followCursor && chaseRecovery.current) {
         if (distance(current, pointerPosition.current) <= 135) returnToAutonomy(now);
         else {
           desired = pointerPosition.current;
@@ -410,6 +453,7 @@ export function usePetBrain({
 
       if (
         enableEdgePeek &&
+        followCursor &&
         !forcedDebugState &&
         !focusActive &&
         now >= edgeCooldownUntil.current &&
@@ -434,9 +478,13 @@ export function usePetBrain({
 
       const offsetX = desired.x > current.x ? -48 : 48;
       const offsetY = desired.y > current.y ? 30 : -28;
+      if (!followMovementEnabled) {
+        desired = current;
+        holdPosition = true;
+      }
       target.current = holdPosition ? { ...current } : { x: desired.x + offsetX, y: desired.y + offsetY };
-      if (behavior === 'HIDING') target.current = { ...desired };
-      else if (edgeReturn.current && !forcedDebugState) {
+      if (behavior === 'HIDING' && followMovementEnabled) target.current = { ...desired };
+      else if (edgeReturn.current && !forcedDebugState && followCursor) {
         const returnTarget = {
           x: clamp(pointerPosition.current.x, 80, innerWidth - 80),
           y: clamp(pointerPosition.current.y, 65, innerHeight - 65),
@@ -456,7 +504,12 @@ export function usePetBrain({
       current.x += (target.current.x - current.x) * Math.min(1, easing * delta);
       current.y += (target.current.y - current.y) * Math.min(1, easing * delta);
 
-      const normalizedSpeed = now - lastInput.current < 180 ? Math.min(1, velocityRef.current / 1.5) : 0;
+      if (followCatchUp.current && distance(current, pointerPosition.current) <= 80) {
+        followCatchUp.current = false;
+        if (!forcedDebugState) commit(focusActive ? 'IDLE' : speedState(velocityRef.current));
+      }
+
+      const normalizedSpeed = followCursor && now - lastInput.current < 180 ? Math.min(1, velocityRef.current / 1.5) : 0;
       setVelocity(previous => Math.abs(previous - normalizedSpeed) > .1 ? normalizedSpeed : previous);
 
       const elementNode = element.current;
@@ -475,7 +528,7 @@ export function usePetBrain({
       cancelAnimationFrame(frame.current);
       media.removeEventListener('change', updateMotionPreference);
     };
-  }, [beginHiding, commit, enableEdgePeek, focusActive, forcedDebugState, returnToAutonomy, schedule]);
+  }, [beginHiding, commit, enableEdgePeek, focusActive, followCursor, forcedDebugState, returnToAutonomy, schedule]);
 
   const movementIntensity = behaviorIntensity(effectiveState);
   return {
