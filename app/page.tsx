@@ -35,7 +35,7 @@ export default function Home() {
     <main className={styles.page}>
       <header className={styles.header}>
         <a className={styles.wordmark} href="#home" aria-label="Cursor Pet home"><span className={styles.mark} aria-hidden="true"><i /><i /><i /></span>CURSOR PET</a>
-        <span className={styles.edition}>A LITTLE WEB EXPERIMENT&nbsp; · &nbsp;NO. 01</span>
+        <span className={styles.edition}>A LITTLE WEB EXPERIMENT</span>
       </header>
 
       <section className={styles.stage} id="home" aria-label="Meet your cursor companion">
@@ -44,8 +44,8 @@ export default function Home() {
           <h1>You brought<br /><em>a friend.</em></h1>
           <p className={styles.lede}>They’re curious about what you’re up to.</p>
         </div>
-        <div className={`${styles.hint} ${interacted ? styles.hintGone : ''}`} aria-hidden="true"><span className={styles.hintDot} />move around. it’s watching.</div>
-        <div className={styles.stageNote}>A STUDY IN KEEPING COMPANY<br />MADE FOR THE IN-BETWEEN</div>
+        <div className={`${styles.hint} ${interacted ? styles.hintGone : ''}`} aria-hidden="true"><span className={styles.hintDot} />move around. see what happens.</div>
+        <div className={styles.stageNote}>MOVE. CLICK. WAIT.<br />IT REACTS.</div>
         <div className={styles.scrollCue} aria-hidden="true"><span />give them a little room</div>
       </section>
 
@@ -71,7 +71,7 @@ export default function Home() {
             </button>
           </div>
         </div>
-        <div className={styles.footerEnd}><span>DESIGNED TO FOLLOW</span><span>2026</span></div>
+        <div className={styles.footerEnd}><span>CURSOR PET</span><span>2026</span></div>
       </footer>
 
       <CursorPet

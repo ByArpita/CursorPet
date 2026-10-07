@@ -127,7 +127,7 @@ export default function FocusTimer({ onFocusChange, onComplete, onReset, debugCo
       {hasSession && <output className={styles.time} aria-live="off" aria-label={`${Math.floor(remaining / 60)} minutes ${remaining % 60} seconds`}>{display}</output>}
       <div className={styles.controls}>
         {!hasSession
-          ? <button type="button" onClick={start}>start</button>
+          ? <button className={styles.startButton} type="button" onClick={start}>start</button>
           : running
             ? <button type="button" onClick={() => setRunning(false)}>pause</button>
             : <button type="button" onClick={() => setRunning(true)} disabled={remaining === 0}>resume</button>}

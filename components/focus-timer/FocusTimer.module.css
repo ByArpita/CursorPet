@@ -16,3 +16,4 @@
 .controls button:disabled{opacity:.4;cursor:default}
 .controls button:focus-visible,.duration button:focus-visible{outline:2px solid var(--rust);outline-offset:3px}
 @media(max-width:700px){.timer{gap:10px;flex-wrap:wrap;justify-content:center;max-width:290px}.label{font-size:7px}.time{font-size:21px;min-width:57px}.controls{gap:6px}}
+.controls .startButton{border:1px solid #d8d3c8;border-radius:12px;padding:3px 8px;color:#5c594f}
