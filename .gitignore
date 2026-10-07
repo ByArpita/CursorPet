@@ -1,0 +1,12 @@
+node_modules
+.next
+out
+next-env.d.ts.tmp
+*.tsbuildinfo
+.DS_Store
+
+.playwright-mcp/
+%SystemDrive%/
+
+.playwright-mcp/
+%SystemDrive%/

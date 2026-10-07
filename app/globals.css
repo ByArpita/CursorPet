@@ -1,0 +1,8 @@
+:root { --paper:#f5f2e9; --ink:#292821; --muted:#9b978c; --line:#dfdbd0; --rust:#bf6848; }
+* { box-sizing:border-box; }
+html { background:var(--paper); scroll-behavior:smooth; }
+body { margin:0; color:var(--ink); background:var(--paper); font-family:'DM Sans', 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing:antialiased; }
+button { font:inherit; }
+::selection { background:#ddad94; color:#28251f; }
+:focus-visible { outline:2px solid var(--rust); outline-offset:4px; }
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
